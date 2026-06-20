@@ -93,46 +93,33 @@ body {
   background: var(--bg-soft);
 }
 
-/* Coin tabs */
-.coin-tabs {
+/* Range toggle */
+.range-toggle {
   display: flex;
-  gap: 10px;
+  flex-wrap: wrap;
+  gap: 6px;
   margin-bottom: 22px;
 }
-.coin-tab {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
+.range-btn {
+  flex: 1 1 auto;
+  min-width: 64px;
   background: var(--card);
   border: 1px solid var(--border);
   color: var(--text-dim);
-  border-radius: 12px;
-  padding: 12px 14px;
-  font-size: 0.95rem;
+  border-radius: 10px;
+  padding: 9px 10px;
+  font-size: 0.88rem;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.15s;
 }
-.coin-tab:hover {
+.range-btn:hover {
   border-color: var(--accent);
 }
-.coin-tab.active {
+.range-btn.active {
+  background: var(--accent);
   border-color: var(--accent);
-  color: var(--text);
-  box-shadow: inset 0 0 0 1px var(--accent);
-}
-.coin-tab-mark {
-  color: var(--accent);
-  font-weight: 700;
-}
-.coin-tab-ticker {
-  font-size: 0.72rem;
-  color: var(--text-dim);
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  padding: 1px 6px;
+  color: #0b0e11;
 }
 
 /* Hero */
@@ -165,33 +152,64 @@ body {
   font-weight: 700;
 }
 
-/* Cards */
-.cards {
+/* Coin summary grid */
+.summary-grid {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(2, 1fr);
   gap: 12px;
   margin-bottom: 28px;
 }
-.card {
+.coin-summary {
   background: var(--card);
   border: 1px solid var(--border);
   border-radius: 14px;
-  padding: 16px 14px;
+  padding: 16px 16px 18px;
   display: flex;
   flex-direction: column;
   gap: 6px;
 }
-.card-label {
-  font-size: 0.78rem;
-  color: var(--text-dim);
+.coin-summary-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
-.card-value {
-  font-size: clamp(1rem, 3.4vw, 1.3rem);
+.coin-summary-mark {
+  font-size: 1.15rem;
+  font-weight: 700;
+}
+.coin-summary-name {
+  font-weight: 600;
+}
+.coin-summary-ticker {
+  font-size: 0.72rem;
+  color: var(--text-dim);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 1px 6px;
+}
+.coin-summary-price {
+  font-size: clamp(1.2rem, 4vw, 1.5rem);
   font-weight: 700;
   font-variant-numeric: tabular-nums;
 }
-.card-value.neutral {
-  color: var(--text);
+.coin-summary-change {
+  font-size: 1rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.coin-summary-range {
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: var(--text-dim);
+  margin-left: 6px;
+}
+.coin-summary-hl {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 4px;
+  font-size: 0.82rem;
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
 }
 
 /* Chart */
@@ -212,28 +230,34 @@ body {
   font-size: 1.1rem;
   margin: 0;
 }
-.toggle {
-  display: inline-flex;
-  background: var(--bg-soft);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  padding: 3px;
-  gap: 3px;
+.cmp-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-bottom: 10px;
 }
-.toggle-btn {
-  border: none;
-  background: transparent;
-  color: var(--text-dim);
-  padding: 7px 16px;
-  border-radius: 8px;
-  font-size: 0.88rem;
+.cmp-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 0.86rem;
   font-weight: 600;
-  cursor: pointer;
-  transition: all 0.15s;
+  font-variant-numeric: tabular-nums;
 }
-.toggle-btn.active {
-  background: var(--accent);
-  color: #0b0e11;
+.cmp-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.cmp-legend-name {
+  color: var(--text-dim);
+  font-weight: 500;
+}
+.chart-caption {
+  margin: 10px 2px 2px;
+  font-size: 0.8rem;
+  color: var(--text-dim);
 }
 .chart-wrap {
   width: 100%;
@@ -269,27 +293,6 @@ body {
 @keyframes livePulse {
   0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(22, 199, 132, 0.5); }
   50% { opacity: 0.6; box-shadow: 0 0 0 5px rgba(22, 199, 132, 0); }
-}
-
-/* Recharts tooltip */
-.tooltip {
-  background: var(--bg-soft);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  padding: 8px 12px;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.25);
-}
-.tooltip-date {
-  font-size: 0.72rem;
-  color: var(--text-dim);
-}
-.tooltip-price {
-  font-size: 0.95rem;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
 }
 
 /* Explanation */
@@ -410,10 +413,133 @@ body {
   font-size: 0.82rem;
 }
 
+/* History */
+.history {
+  margin-bottom: 28px;
+}
+.history .section-title {
+  margin-bottom: 14px;
+}
+.history-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+}
+.history-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 18px 18px 8px;
+}
+.history-head {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin-bottom: 10px;
+}
+.history-mark {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--accent);
+}
+.history-head h3 {
+  margin: 0;
+  font-size: 1.05rem;
+}
+.history-born {
+  margin-left: auto;
+  font-size: 0.75rem;
+  color: var(--text-dim);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 1px 7px;
+}
+.history-card ul {
+  margin: 0;
+  padding-left: 18px;
+}
+.history-card li {
+  margin-bottom: 10px;
+  color: var(--text-dim);
+  font-size: 0.9rem;
+}
+
+/* Macro outlook */
+.outlook {
+  margin-bottom: 28px;
+}
+.outlook .section-title {
+  margin-bottom: 10px;
+}
+.outlook-note {
+  margin: 0 0 16px;
+  font-size: 0.82rem;
+  color: var(--text-dim);
+  background: var(--bg-soft);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 13px;
+}
+.outlook-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+}
+.outlook-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 18px 18px 20px;
+}
+.outlook-head {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin-bottom: 12px;
+}
+.outlook-mark {
+  font-size: 1.25rem;
+  font-weight: 700;
+}
+.outlook-head h3 {
+  margin: 0;
+  font-size: 1.05rem;
+}
+.outlook-row {
+  margin: 0 0 12px;
+  font-size: 0.9rem;
+  color: var(--text-dim);
+}
+.outlook-tag {
+  display: inline-block;
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 2px 9px;
+  border-radius: 999px;
+  margin-right: 7px;
+  border: 1px solid currentColor;
+  vertical-align: middle;
+}
+.outlook-tag.up {
+  color: var(--up);
+}
+.outlook-tag.down {
+  color: var(--down);
+}
+.outlook-takeaway {
+  margin: 0;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+  font-size: 0.9rem;
+  color: var(--text);
+}
+
 /* Responsive */
 @media (max-width: 640px) {
-  .cards {
-    grid-template-columns: repeat(2, 1fr);
+  .summary-grid,
+  .history-grid,
+  .outlook-grid {
+    grid-template-columns: 1fr;
   }
   .chart-wrap {
     height: 260px;

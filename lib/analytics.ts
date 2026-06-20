@@ -1,28 +1,35 @@
-import type { PricePoint, TrendSummary } from "./types";
+import type { CoinStat, Direction, LinePoint } from "./types";
 
 const FLAT_THRESHOLD = 1.5; // percent — below this we call it sideways
 
-export function summarize(points: PricePoint[]): TrendSummary {
-  const prices = points.map((p) => p.price);
-  const first = prices[0];
-  const current = prices[prices.length - 1];
+function directionFor(changePercent: number): Direction {
+  if (changePercent > FLAT_THRESHOLD) return "up";
+  if (changePercent < -FLAT_THRESHOLD) return "down";
+  return "flat";
+}
+
+/** Snapshot of a coin over the selected range, from its closing prices. */
+export function statFromCloses(closes: number[]): CoinStat {
+  const first = closes[0];
+  const current = closes[closes.length - 1];
   const changePercent = ((current - first) / first) * 100;
-
-  let direction: TrendSummary["direction"] = "flat";
-  if (changePercent > FLAT_THRESHOLD) direction = "up";
-  else if (changePercent < -FLAT_THRESHOLD) direction = "down";
-
   return {
-    direction,
+    direction: directionFor(changePercent),
     changePercent,
     current,
-    high: Math.max(...prices),
-    low: Math.min(...prices),
-    rangeDays: points.length,
+    high: Math.max(...closes),
+    low: Math.min(...closes),
   };
 }
 
-const COPY: Record<TrendSummary["direction"], { headline: string; body: string }> = {
+/** Normalize closes to percent change from the first point (for charting). */
+export function toNormalizedLine(points: { time: number; close: number }[]): LinePoint[] {
+  if (!points.length) return [];
+  const base = points[0].close;
+  return points.map((p) => ({ time: p.time, value: (p.close / base - 1) * 100 }));
+}
+
+const COPY: Record<Direction, { headline: string; body: string }> = {
   up: {
     headline: "지금은 상승 추세예요",
     body:
@@ -40,7 +47,7 @@ const COPY: Record<TrendSummary["direction"], { headline: string; body: string }
   },
 };
 
-export function trendCopy(direction: TrendSummary["direction"]) {
+export function trendCopy(direction: Direction) {
   return COPY[direction];
 }
 

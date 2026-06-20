@@ -1,34 +1,38 @@
 "use client";
 
 import { useMemo, useState, useEffect, useRef } from "react";
-import { summarize, formatUsd, formatPercent } from "@/lib/analytics";
-import { COINS, COIN_LIST } from "@/lib/coins";
-import { fetchCandles, openCandleStream, mockCandles } from "@/lib/binance";
-import type { Candle, CoinId, DataSource, PricePoint, RangeKey } from "@/lib/types";
-import CandleChart from "@/components/CandleChart";
-import IndicatorCards from "@/components/IndicatorCards";
+import { statFromCloses, toNormalizedLine, formatPercent } from "@/lib/analytics";
+import { COINS } from "@/lib/coins";
+import { RANGES, rangeByKey, fetchCloses, openCloseStream, mockCloses } from "@/lib/binance";
+import type { ClosePoint, CoinId, DataSource, Direction, RangeKey } from "@/lib/types";
+import ComparisonChart from "@/components/ComparisonChart";
+import CoinSummary from "@/components/CoinSummary";
 import TrendExplanation from "@/components/TrendExplanation";
+import History from "@/components/History";
+import MacroOutlook from "@/components/MacroOutlook";
 import Faq from "@/components/Faq";
 
-function candlesToPoints(candles: Candle[]): PricePoint[] {
-  return candles.map((c) => ({ date: c.time, price: c.close }));
+function directionWord(d: Direction): string {
+  return d === "up" ? "오르는 중" : d === "down" ? "내리는 중" : "횡보 중";
 }
 
-const RANGES: { key: RangeKey; label: string }[] = [
-  { key: "30", label: "30일" },
-  { key: "90", label: "90일" },
-];
+function mergeTick(prev: ClosePoint[], tick: ClosePoint): ClosePoint[] {
+  if (!prev.length) return prev;
+  const last = prev[prev.length - 1];
+  if (tick.time === last.time) return [...prev.slice(0, -1), tick];
+  if (tick.time > last.time) return [...prev.slice(1), tick];
+  return prev;
+}
 
 export default function Home() {
-  const [coinId, setCoinId] = useState<CoinId>("btc");
-  const [range, setRange] = useState<RangeKey>("30");
+  const [rangeKey, setRangeKey] = useState<RangeKey>("1q");
   const [theme, setTheme] = useState<"light" | "dark">("dark");
-  const [candles, setCandles] = useState<Candle[]>([]);
+  const [btcCloses, setBtcCloses] = useState<ClosePoint[]>([]);
+  const [ethCloses, setEthCloses] = useState<ClosePoint[]>([]);
   const [source, setSource] = useState<DataSource>("live");
-  const tickRef = useRef(0);
+  const tickRef = useRef<Record<CoinId, number>>({ btc: 0, eth: 0 });
 
-  const coin = COINS[coinId];
-  const days = Number(range);
+  const range = rangeByKey(rangeKey);
 
   useEffect(() => {
     const current = (document.documentElement.dataset.theme as "light" | "dark") || "dark";
@@ -46,79 +50,70 @@ export default function Home() {
     }
   }
 
-  // Load historical candles from Binance; fall back to mock if unreachable.
+  // Load both coins for the selected range; fall back to mock if unreachable.
   useEffect(() => {
     let cancelled = false;
-    setCandles([]);
-    fetchCandles(coinId, days)
-      .then((c) => {
+    setBtcCloses([]);
+    setEthCloses([]);
+    Promise.all([fetchCloses("btc", range), fetchCloses("eth", range)])
+      .then(([b, e]) => {
         if (cancelled) return;
-        setCandles(c);
+        setBtcCloses(b);
+        setEthCloses(e);
         setSource("live");
       })
       .catch(() => {
         if (cancelled) return;
-        setCandles(mockCandles(coinId, days));
+        setBtcCloses(mockCloses("btc", range));
+        setEthCloses(mockCloses("eth", range));
         setSource("mock");
       });
     return () => {
       cancelled = true;
     };
-  }, [coinId, days]);
+  }, [range]);
 
-  // Realtime: update the most recent candle as new trades stream in.
+  // Realtime: update the latest point of each coin as trades stream in.
   useEffect(() => {
     if (source !== "live") return;
-    const stop = openCandleStream(coinId, (live) => {
-      const now = Date.now();
-      if (now - tickRef.current < 800) return; // throttle UI updates
-      tickRef.current = now;
-      setCandles((prev) => {
-        if (!prev.length) return prev;
-        const last = prev[prev.length - 1];
-        if (live.time === last.time) {
-          return [...prev.slice(0, -1), live];
-        }
-        if (live.time > last.time) {
-          return [...prev.slice(1), live];
-        }
-        return prev;
+    const apply = (coin: CoinId, setter: typeof setBtcCloses) =>
+      openCloseStream(coin, range, (tick) => {
+        const now = Date.now();
+        if (now - tickRef.current[coin] < 800) return;
+        tickRef.current[coin] = now;
+        setter((prev) => mergeTick(prev, tick));
       });
-    });
-    return stop;
-  }, [coinId, source]);
+    const stopBtc = apply("btc", setBtcCloses);
+    const stopEth = apply("eth", setEthCloses);
+    return () => {
+      stopBtc();
+      stopEth();
+    };
+  }, [range, source]);
 
-  const points = useMemo(() => candlesToPoints(candles), [candles]);
-  const summary = useMemo(
-    () => (points.length ? summarize(points) : null),
-    [points]
+  const btcLine = useMemo(() => toNormalizedLine(btcCloses), [btcCloses]);
+  const ethLine = useMemo(() => toNormalizedLine(ethCloses), [ethCloses]);
+  const btcStat = useMemo(
+    () => (btcCloses.length ? statFromCloses(btcCloses.map((c) => c.close)) : null),
+    [btcCloses]
   );
+  const ethStat = useMemo(
+    () => (ethCloses.length ? statFromCloses(ethCloses.map((c) => c.close)) : null),
+    [ethCloses]
+  );
+
+  const ready = btcStat && ethStat && btcLine.length > 0;
 
   return (
     <main className="page">
       <header className="topbar">
         <span className="logo">
-          <span className="logo-mark">{coin.symbol}</span> Crypto Trend
+          <span className="logo-mark">◎</span> Crypto Trend
         </span>
         <button className="theme-btn" onClick={toggleTheme} aria-label="테마 전환">
           {theme === "dark" ? "☀︎" : "☾"}
         </button>
       </header>
-
-      <div className="coin-tabs" role="group" aria-label="코인 선택">
-        {COIN_LIST.map((c) => (
-          <button
-            key={c.id}
-            className={`coin-tab ${coinId === c.id ? "active" : ""}`}
-            onClick={() => setCoinId(c.id)}
-            aria-pressed={coinId === c.id}
-          >
-            <span className="coin-tab-mark">{c.symbol}</span>
-            {c.name}
-            <span className="coin-tab-ticker">{c.ticker}</span>
-          </button>
-        ))}
-      </div>
 
       <section className="hero">
         <p className="eyebrow">
@@ -130,49 +125,66 @@ export default function Home() {
             "샘플 데이터 (실시간 연결 실패)"
           )}
         </p>
-        <h1>{coin.name}, 지금 어디로 가고 있나</h1>
-        {summary ? (
+        <h1>비트코인과 이더리움, 지금 어디로 가고 있나</h1>
+        {ready ? (
           <p className="hero-summary">
-            최근 {summary.rangeDays}일 동안 {coin.name}은{" "}
-            <strong className={summary.direction}>
-              {summary.direction === "up" ? "오르는 중" : summary.direction === "down" ? "내리는 중" : "횡보 중"}
-            </strong>
-            이에요. 현재가 {formatUsd(summary.current)}, 변동률{" "}
-            <strong className={summary.direction}>{formatPercent(summary.changePercent)}</strong>.
+            최근 {range.label} 동안 비트코인은{" "}
+            <strong className={btcStat.direction}>{directionWord(btcStat.direction)}</strong>(
+            {formatPercent(btcStat.changePercent)}), 이더리움은{" "}
+            <strong className={ethStat.direction}>{directionWord(ethStat.direction)}</strong>(
+            {formatPercent(ethStat.changePercent)})이에요.
           </p>
         ) : (
           <p className="hero-summary">시세를 불러오는 중…</p>
         )}
       </section>
 
-      {summary && <IndicatorCards summary={summary} />}
+      <div className="range-toggle" role="group" aria-label="기간 선택">
+        {RANGES.map((r) => (
+          <button
+            key={r.key}
+            className={`range-btn ${rangeKey === r.key ? "active" : ""}`}
+            onClick={() => setRangeKey(r.key)}
+            aria-pressed={rangeKey === r.key}
+          >
+            {r.label}
+          </button>
+        ))}
+      </div>
 
       <section className="chart-section">
         <div className="chart-head">
           <h2 className="section-title">
-            가격 차트 <span className="chart-sub">OHLC 캔들</span>
+            가격 비교 차트 <span className="chart-sub">기간 시작=0% 기준 상대 변동</span>
           </h2>
-          <div className="toggle" role="group" aria-label="기간 선택">
-            {RANGES.map((r) => (
-              <button
-                key={r.key}
-                className={`toggle-btn ${range === r.key ? "active" : ""}`}
-                onClick={() => setRange(r.key)}
-                aria-pressed={range === r.key}
-              >
-                {r.label}
-              </button>
-            ))}
-          </div>
         </div>
-        {candles.length ? (
-          <CandleChart candles={candles} theme={theme} />
+        {ready ? (
+          <ComparisonChart btc={btcLine} eth={ethLine} intraday={range.intraday} theme={theme} />
         ) : (
           <div className="chart-wrap chart-loading">차트를 불러오는 중…</div>
         )}
+        <p className="chart-caption">
+          두 코인의 가격대가 크게 달라, 같은 출발선(0%)에서 얼마나 움직였는지를 비교해요.
+        </p>
       </section>
 
-      {summary && <TrendExplanation summary={summary} />}
+      {ready && (
+        <div className="summary-grid">
+          <CoinSummary coin={COINS.btc} stat={btcStat} rangeLabel={range.label} />
+          <CoinSummary coin={COINS.eth} stat={ethStat} rangeLabel={range.label} />
+        </div>
+      )}
+
+      {ready && (
+        <>
+          <TrendExplanation coin={COINS.btc} stat={btcStat} rangeLabel={range.label} />
+          <TrendExplanation coin={COINS.eth} stat={ethStat} rangeLabel={range.label} />
+        </>
+      )}
+
+      <History />
+
+      <MacroOutlook />
 
       <Faq />
 
