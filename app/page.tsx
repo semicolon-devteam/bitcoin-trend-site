@@ -1,14 +1,18 @@
 "use client";
 
-import { useMemo, useState, useEffect } from "react";
-import { getPriceHistory } from "@/lib/mockData";
+import { useMemo, useState, useEffect, useRef } from "react";
 import { summarize, formatUsd, formatPercent } from "@/lib/analytics";
 import { COINS, COIN_LIST } from "@/lib/coins";
-import type { CoinId, RangeKey } from "@/lib/types";
-import PriceChart from "@/components/PriceChart";
+import { fetchCandles, openCandleStream, mockCandles } from "@/lib/binance";
+import type { Candle, CoinId, DataSource, PricePoint, RangeKey } from "@/lib/types";
+import CandleChart from "@/components/CandleChart";
 import IndicatorCards from "@/components/IndicatorCards";
 import TrendExplanation from "@/components/TrendExplanation";
 import Faq from "@/components/Faq";
+
+function candlesToPoints(candles: Candle[]): PricePoint[] {
+  return candles.map((c) => ({ date: c.time, price: c.close }));
+}
 
 const RANGES: { key: RangeKey; label: string }[] = [
   { key: "30", label: "30일" },
@@ -19,8 +23,12 @@ export default function Home() {
   const [coinId, setCoinId] = useState<CoinId>("btc");
   const [range, setRange] = useState<RangeKey>("30");
   const [theme, setTheme] = useState<"light" | "dark">("dark");
+  const [candles, setCandles] = useState<Candle[]>([]);
+  const [source, setSource] = useState<DataSource>("live");
+  const tickRef = useRef(0);
 
   const coin = COINS[coinId];
+  const days = Number(range);
 
   useEffect(() => {
     const current = (document.documentElement.dataset.theme as "light" | "dark") || "dark";
@@ -38,8 +46,53 @@ export default function Home() {
     }
   }
 
-  const data = useMemo(() => getPriceHistory(coinId, Number(range)), [coinId, range]);
-  const summary = useMemo(() => summarize(data), [data]);
+  // Load historical candles from Binance; fall back to mock if unreachable.
+  useEffect(() => {
+    let cancelled = false;
+    setCandles([]);
+    fetchCandles(coinId, days)
+      .then((c) => {
+        if (cancelled) return;
+        setCandles(c);
+        setSource("live");
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setCandles(mockCandles(coinId, days));
+        setSource("mock");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [coinId, days]);
+
+  // Realtime: update the most recent candle as new trades stream in.
+  useEffect(() => {
+    if (source !== "live") return;
+    const stop = openCandleStream(coinId, (live) => {
+      const now = Date.now();
+      if (now - tickRef.current < 800) return; // throttle UI updates
+      tickRef.current = now;
+      setCandles((prev) => {
+        if (!prev.length) return prev;
+        const last = prev[prev.length - 1];
+        if (live.time === last.time) {
+          return [...prev.slice(0, -1), live];
+        }
+        if (live.time > last.time) {
+          return [...prev.slice(1), live];
+        }
+        return prev;
+      });
+    });
+    return stop;
+  }, [coinId, source]);
+
+  const points = useMemo(() => candlesToPoints(candles), [candles]);
+  const summary = useMemo(
+    () => (points.length ? summarize(points) : null),
+    [points]
+  );
 
   return (
     <main className="page">
@@ -68,23 +121,37 @@ export default function Home() {
       </div>
 
       <section className="hero">
-        <p className="eyebrow">학습용 · mock 데이터</p>
-        <h1>{coin.name}, 지금 어디로 가고 있나</h1>
-        <p className="hero-summary">
-          최근 {summary.rangeDays}일 동안 {coin.name}은{" "}
-          <strong className={summary.direction}>
-            {summary.direction === "up" ? "오르는 중" : summary.direction === "down" ? "내리는 중" : "횡보 중"}
-          </strong>
-          이에요. 현재가 {formatUsd(summary.current)}, 변동률{" "}
-          <strong className={summary.direction}>{formatPercent(summary.changePercent)}</strong>.
+        <p className="eyebrow">
+          {source === "live" ? (
+            <>
+              <span className="live-dot" /> 실시간 · 바이낸스
+            </>
+          ) : (
+            "샘플 데이터 (실시간 연결 실패)"
+          )}
         </p>
+        <h1>{coin.name}, 지금 어디로 가고 있나</h1>
+        {summary ? (
+          <p className="hero-summary">
+            최근 {summary.rangeDays}일 동안 {coin.name}은{" "}
+            <strong className={summary.direction}>
+              {summary.direction === "up" ? "오르는 중" : summary.direction === "down" ? "내리는 중" : "횡보 중"}
+            </strong>
+            이에요. 현재가 {formatUsd(summary.current)}, 변동률{" "}
+            <strong className={summary.direction}>{formatPercent(summary.changePercent)}</strong>.
+          </p>
+        ) : (
+          <p className="hero-summary">시세를 불러오는 중…</p>
+        )}
       </section>
 
-      <IndicatorCards summary={summary} />
+      {summary && <IndicatorCards summary={summary} />}
 
       <section className="chart-section">
         <div className="chart-head">
-          <h2 className="section-title">가격 차트</h2>
+          <h2 className="section-title">
+            가격 차트 <span className="chart-sub">OHLC 캔들</span>
+          </h2>
           <div className="toggle" role="group" aria-label="기간 선택">
             {RANGES.map((r) => (
               <button
@@ -98,10 +165,14 @@ export default function Home() {
             ))}
           </div>
         </div>
-        <PriceChart data={data} direction={summary.direction} />
+        {candles.length ? (
+          <CandleChart candles={candles} theme={theme} />
+        ) : (
+          <div className="chart-wrap chart-loading">차트를 불러오는 중…</div>
+        )}
       </section>
 
-      <TrendExplanation summary={summary} />
+      {summary && <TrendExplanation summary={summary} />}
 
       <Faq />
 
@@ -112,7 +183,11 @@ export default function Home() {
       </section>
 
       <footer className="footer">
-        <p>샘플(mock) 데이터로 만든 학습용 데모입니다. 투자 조언이 아닙니다.</p>
+        <p>
+          {source === "live"
+            ? "시세 데이터: 바이낸스 공개 API. 학습용 데모이며 투자 조언이 아닙니다."
+            : "샘플(mock) 데이터로 만든 학습용 데모입니다. 투자 조언이 아닙니다."}
+        </p>
       </footer>
     </main>
   );

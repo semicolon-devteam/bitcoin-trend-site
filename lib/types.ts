@@ -5,6 +5,17 @@ export interface PricePoint {
   price: number;
 }
 
+export interface Candle {
+  /** ISO date string "yyyy-mm-dd" (used as lightweight-charts time) */
+  time: string;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+}
+
+export type DataSource = "live" | "mock";
+
 export type RangeKey = "30" | "90";
 
 export type CoinId = "btc" | "eth";
