@@ -67,8 +67,12 @@ export default function PriceChart({ data, direction }: Props) {
           />
           <YAxis
             domain={[min - pad, max + pad]}
-            tickFormatter={(v) => `$${Math.round(v / 1000)}k`}
-            width={48}
+            tickFormatter={(v) =>
+              max >= 10000
+                ? `$${Math.round(v / 1000)}k`
+                : `$${Math.round(v).toLocaleString("en-US")}`
+            }
+            width={max >= 10000 ? 48 : 60}
             stroke="var(--axis)"
             tick={{ fontSize: 12 }}
           />

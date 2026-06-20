@@ -1,4 +1,4 @@
-import type { PricePoint } from "./types";
+import type { CoinId, PricePoint } from "./types";
 
 /**
  * Mock price source. Deterministic so server and client render identically.
@@ -22,17 +22,22 @@ function mulberry32(seed: number): () => number {
 
 const TOTAL_DAYS = 90;
 const END_DATE = new Date("2026-06-20T00:00:00Z");
-const START_PRICE = 61000;
 
-function buildSeries(): PricePoint[] {
-  const rng = mulberry32(20260620);
+// Per-coin generation settings. Each coin gets its own seed so the two
+// series look different while staying deterministic across renders.
+const COIN_PARAMS: Record<CoinId, { seed: number; startPrice: number; drift: number; vol: number }> = {
+  btc: { seed: 20260620, startPrice: 61000, drift: 0.0016, vol: 0.045 },
+  eth: { seed: 31415926, startPrice: 3400, drift: 0.0011, vol: 0.052 },
+};
+
+function buildSeries(coin: CoinId): PricePoint[] {
+  const { seed, startPrice, drift, vol } = COIN_PARAMS[coin];
+  const rng = mulberry32(seed);
   const points: PricePoint[] = [];
-  let price = START_PRICE;
+  let price = startPrice;
 
   for (let i = TOTAL_DAYS - 1; i >= 0; i--) {
-    // Gentle upward drift with daily volatility.
-    const drift = 0.0016;
-    const shock = (rng() - 0.5) * 0.045;
+    const shock = (rng() - 0.5) * vol;
     price = price * (1 + drift + shock);
 
     const date = new Date(END_DATE);
@@ -46,12 +51,15 @@ function buildSeries(): PricePoint[] {
   return points;
 }
 
-const FULL_SERIES = buildSeries();
+const FULL_SERIES: Record<CoinId, PricePoint[]> = {
+  btc: buildSeries("btc"),
+  eth: buildSeries("eth"),
+};
 
 /**
- * Returns the last `days` price points (most recent last).
+ * Returns the last `days` price points for a coin (most recent last).
  * Swap the body for a real API call when ready.
  */
-export function getPriceHistory(days: number): PricePoint[] {
-  return FULL_SERIES.slice(-days);
+export function getPriceHistory(coin: CoinId, days: number): PricePoint[] {
+  return FULL_SERIES[coin].slice(-days);
 }

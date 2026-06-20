@@ -7,6 +7,18 @@ export interface PricePoint {
 
 export type RangeKey = "30" | "90";
 
+export type CoinId = "btc" | "eth";
+
+export interface Coin {
+  id: CoinId;
+  /** Korean display name, e.g. "비트코인" */
+  name: string;
+  /** Ticker, e.g. "BTC" */
+  ticker: string;
+  /** Currency symbol shown in the logo, e.g. "₿" */
+  symbol: string;
+}
+
 export interface TrendSummary {
   direction: "up" | "down" | "flat";
   /** Percent change across the selected range, e.g. 12.4 */

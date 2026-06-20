@@ -3,7 +3,8 @@
 import { useMemo, useState, useEffect } from "react";
 import { getPriceHistory } from "@/lib/mockData";
 import { summarize, formatUsd, formatPercent } from "@/lib/analytics";
-import type { RangeKey } from "@/lib/types";
+import { COINS, COIN_LIST } from "@/lib/coins";
+import type { CoinId, RangeKey } from "@/lib/types";
 import PriceChart from "@/components/PriceChart";
 import IndicatorCards from "@/components/IndicatorCards";
 import TrendExplanation from "@/components/TrendExplanation";
@@ -15,8 +16,11 @@ const RANGES: { key: RangeKey; label: string }[] = [
 ];
 
 export default function Home() {
+  const [coinId, setCoinId] = useState<CoinId>("btc");
   const [range, setRange] = useState<RangeKey>("30");
   const [theme, setTheme] = useState<"light" | "dark">("dark");
+
+  const coin = COINS[coinId];
 
   useEffect(() => {
     const current = (document.documentElement.dataset.theme as "light" | "dark") || "dark";
@@ -34,25 +38,40 @@ export default function Home() {
     }
   }
 
-  const data = useMemo(() => getPriceHistory(Number(range)), [range]);
+  const data = useMemo(() => getPriceHistory(coinId, Number(range)), [coinId, range]);
   const summary = useMemo(() => summarize(data), [data]);
 
   return (
     <main className="page">
       <header className="topbar">
         <span className="logo">
-          <span className="logo-mark">₿</span> BTC Trend
+          <span className="logo-mark">{coin.symbol}</span> Crypto Trend
         </span>
         <button className="theme-btn" onClick={toggleTheme} aria-label="테마 전환">
           {theme === "dark" ? "☀︎" : "☾"}
         </button>
       </header>
 
+      <div className="coin-tabs" role="group" aria-label="코인 선택">
+        {COIN_LIST.map((c) => (
+          <button
+            key={c.id}
+            className={`coin-tab ${coinId === c.id ? "active" : ""}`}
+            onClick={() => setCoinId(c.id)}
+            aria-pressed={coinId === c.id}
+          >
+            <span className="coin-tab-mark">{c.symbol}</span>
+            {c.name}
+            <span className="coin-tab-ticker">{c.ticker}</span>
+          </button>
+        ))}
+      </div>
+
       <section className="hero">
         <p className="eyebrow">학습용 · mock 데이터</p>
-        <h1>비트코인, 지금 어디로 가고 있나</h1>
+        <h1>{coin.name}, 지금 어디로 가고 있나</h1>
         <p className="hero-summary">
-          최근 {summary.rangeDays}일 동안 비트코인은{" "}
+          최근 {summary.rangeDays}일 동안 {coin.name}은{" "}
           <strong className={summary.direction}>
             {summary.direction === "up" ? "오르는 중" : summary.direction === "down" ? "내리는 중" : "횡보 중"}
           </strong>
@@ -106,7 +125,7 @@ function ShareButton() {
     const url = typeof window !== "undefined" ? window.location.href : "";
     try {
       if (navigator.share) {
-        await navigator.share({ title: "비트코인 추세", url });
+        await navigator.share({ title: "암호화폐 추세", url });
         return;
       }
       await navigator.clipboard.writeText(url);
